@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UAV Survey Net - Web Client Gửi Tọa Độ</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0f172a; color: #f8fafc; padding: 24px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 900px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        h1 { grid-column: 1 / -1; font-size: 24px; color: #38bdf8; text-align: center; margin-bottom: 8px; }
+        .subtitle { grid-column: 1 / -1; text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 16px; }
+        h2 { font-size: 18px; color: #38bdf8; margin-bottom: 16px; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 6px; }
+        input { width: 100%; background: #0f172a; border: 1px solid #475569; color: #f8fafc; padding: 10px 12px; border-radius: 6px; font-size: 14px; outline: none; }
+        input:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
+        .btn-primary { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 8px; }
+        .btn-primary:hover { background: #0369a1; }
+        .radar-box { width: 100%; height: 320px; background: #0b132b; border: 2px solid #1c2541; border-radius: 8px; position: relative; cursor: crosshair; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .radar-circle { position: absolute; border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 50%; pointer-events: none; }
+        .radar-crosshair { position: absolute; background: rgba(56, 189, 248, 0.2); pointer-events: none; }
+        .cross-x { width: 100%; height: 1px; top: 50%; left: 0; }
+        .cross-y { width: 1px; height: 100%; top: 0; left: 50%; }
+        .uav-marker { position: absolute; width: 12px; height: 12px; background: #ef4444; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 8px #ef4444; }
+        .target-marker { position: absolute; width: 14px; height: 14px; background: #22c55e; border: 2px solid #fff; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 10px #22c55e; }
+        .log-box { grid-column: 1 / -1; background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; font-family: monospace; font-size: 13px; max-height: 180px; overflow-y: auto; color: #4ade80; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .badge-success { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .badge-err { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚁 UAV Survey Net - Web Client Gửi Tọa Độ</h1>
+        <p class="subtitle">Giao diện Web Client gửi lệnh nạp tọa độ (CMD_WAYPOINT 0x04) tới Central Server qua TCP/HTTP</p>
+
+        <!-- Khung nhập tọa độ -->
+        <div class="card">
+            <h2>📍 Nhập Tọa Độ Mục Tiêu</h2>
+            <div class="form-group">
+                <label>Server IP & Port TCP:</label>
+                <input id="serverUrl" value="http://localhost:8080">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Vĩ độ (Latitude):</label>
+                    <input id="lat" value="0.000100" step="0.000001" type="number">
+                </div>
+                <div class="form-group">
+                    <label>Kinh độ (Longitude):</label>
+                    <input id="lon" value="0.000150" step="0.000001" type="number">
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group">
+                    <label>Độ cao bay (m):</label>
+                    <input id="alt" value="15.0" step="0.5" type="number">
+                </div>
+                <div class="form-group">
+                    <label>Vận tốc bay (m/s):</label>
+                    <input id="spd" value="1.2" step="0.1" type="number">
+                </div>
+            </div>
+            <button class="btn-primary" onclick="sendCoordinates()">GỬI LỆNH TỌA ĐỘ TỚI SERVER</button>
+        </div>
+
+        <!-- Màn hình Radar chọn điểm click -->
+        <div class="card">
+            <h2>🎯 Màn Hình Radar Cục Bộ (Click chọn điểm)</h2>
+            <div class="radar-box" id="radar" onclick="onRadarClick(event)">
+                <div class="radar-crosshair cross-x"></div>
+                <div class="radar-crosshair cross-y"></div>
+                <div class="radar-circle" style="width: 80px; height: 80px;"></div>
+                <div class="radar-circle" style="width: 160px; height: 160px;"></div>
+                <div class="radar-circle" style="width: 240px; height: 240px;"></div>
+                
+                <!-- Điểm Trạm HOME (0,0) -->
+                <div class="uav-marker" style="left: 50%; top: 50%; background: #38bdf8; box-shadow: 0 0 8px #38bdf8;" title="Trạm HOME (0,0)"></div>
+                <!-- Điểm Đích Marker -->
+                <div class="target-marker" id="targetMarker" style="left: 65%; top: 40%;" title="Điểm Đích"></div>
+            </div>
+            <div style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 8px;">
+                Click trực tiếp trên Radar để chọn nhanh tọa độ (Phạm vi ±200cm)
+            </div>
+        </div>
+
+        <!-- Khung Log phản hồi từ Server -->
+        <div class="log-box" id="logBox">
+            [HỆ THỐNG] Web Client đã sẵn sàng. Hãy nhập tọa độ hoặc click trên Radar rồi ấn "Gửi Lệnh Tọa Độ".
+        </div>
+    </div>
+
+    <script>
+        function log(msg, isSuccess = true) {
+            const box = document.getElementById('logBox');
+            const time = new Date().toLocaleTimeString();
+            const tag = isSuccess ? '<span class="status-badge badge-success">OK</span>' : '<span class="status-badge badge-err">LỖI</span>';
+            box.innerHTML += `<div>[${time}] ${tag} ${msg}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function onRadarClick(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const cx = rect.width / 2;
+            const cy = rect.height / 2;
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+
+            // Tỷ lệ: Bán kính 120px tương ứng 200cm (0.000020 deg)
+            const scale = 200.0 / (rect.width * 0.4);
+            const dx_cm = (clickX - cx) * scale;
+            const dy_cm = (cy - clickY) * scale;
+
+            // 1 deg = 100,000m = 10,000,000cm
+            const lon = (dx_cm / 10000000.0).toFixed(6);
+            const lat = (dy_cm / 10000000.0).toFixed(6);
+
+            document.getElementById('lon').value = lon;
+            document.getElementById('lat').value = lat;
+
+            // Cập nhật vị trí Marker
+            const marker = document.getElementById('targetMarker');
+            marker.style.left = clickX + 'px';
+            marker.style.top = clickY + 'px';
+
+            log(`Đã chọn điểm trên Radar: X=${dx_cm.toFixed(0)}cm, Y=${dy_cm.toFixed(0)}cm -> (Lat: ${lat}, Lon: ${lon})`);
+        }
+
+        function sendCoordinates() {
+            const url = document.getElementById('serverUrl').value.trim();
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lon = parseFloat(document.getElementById('lon').value);
+            const alt = parseFloat(document.getElementById('alt').value);
+            const speed = parseFloat(document.getElementById('spd').value);
+
+            const payload = { lat, lon, alt, speed };
+            log(`Đang gửi lệnh tọa độ tới ${url}/api/waypoint: Lat=${lat}, Lon=${lon}, Alt=${alt}m...`);
+
+            fetch(url + '/api/waypoint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(data => {
+                log(`Server đã xác nhận tiếp nhận tọa độ thành công! (Phản hồi: ${JSON.stringify(data)})`, true);
+            })
+            .catch(err => {
+                log(`Lỗi kết nối tới Server: ${err.message}. Hãy đảm bảo Server đang chạy!`, false);
+            });
+        }
+    </script>
+</body>
+</html>
+
