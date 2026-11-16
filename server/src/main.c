@@ -7,7 +7,7 @@ static TcpServer g_server;
 
 static void handle_signal(int sig) {
     (void)sig;
-    printf("\n[SERVER] Nhận tín hiệu dừng (SIGINT/SIGTERM), đang đóng máy chủ...\n");
+    printf("\n[SERVER] Đang dừng máy chủ an toàn...\n");
     tcp_server_stop(&g_server);
     exit(0);
 }
@@ -15,25 +15,25 @@ static void handle_signal(int sig) {
 int main(int argc, char *argv[]) {
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
-    signal(SIGPIPE, SIG_IGN); // Bỏ qua SIGPIPE nếu client đột ngột ngắt kết nối
+    signal(SIGPIPE, SIG_IGN);
 
-    int port = 8080;
+    int tcp_port = DEFAULT_TCP_PORT; // 8080
+    int udp_port = DEFAULT_UDP_PORT; // 8081
+
     if (argc > 1) {
-        port = atoi(argv[1]);
-        if (port <= 0 || port > 65535) {
-            fprintf(stderr, "Cổng không hợp lệ: %s. Sử dụng cổng mặc định 8080.\n", argv[1]);
-            port = 8080;
-        }
+        tcp_port = atoi(argv[1]);
+        if (tcp_port <= 0 || tcp_port > 65535) tcp_port = DEFAULT_TCP_PORT;
+    }
+    if (argc > 2) {
+        udp_port = atoi(argv[2]);
+        if (udp_port <= 0 || udp_port > 65535) udp_port = DEFAULT_UDP_PORT;
     }
 
-    if (!tcp_server_init(&g_server, port)) {
-        fprintf(stderr, "Không thể khởi tạo máy chủ TCP trên cổng %d!\n", port);
+    if (!tcp_server_init(&g_server, tcp_port, udp_port)) {
+        fprintf(stderr, "Không thể khởi tạo máy chủ trên TCP:%d và UDP:%d!\n", tcp_port, udp_port);
         return 1;
     }
 
-    // Bắt đầu chạy vòng lặp phục vụ các kết nối TCP
     tcp_server_run(&g_server);
-
     return 0;
 }
-
